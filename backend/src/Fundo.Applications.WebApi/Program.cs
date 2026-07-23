@@ -1,31 +1,13 @@
-﻿using Microsoft.AspNetCore;
-using Microsoft.AspNetCore.Hosting;
-using System;
+﻿var builder = WebApplication.CreateBuilder(args);
 
-namespace Fundo.Applications.WebApi
-{
-    public static class Program
-    {
-        public static void Main(string[] args)
-        {
-            try
-            {
-                CreateWebHostBuilder(args).Build().Run();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Unhandled WebApi exception: {ex.Message}");
-            }
-            finally
-            {
-                Console.WriteLine("Application shutting down.");
-            }
-        }
+builder.Services.AddControllers();
 
-        public static IWebHostBuilder CreateWebHostBuilder(string[] args)
-        {
-            return WebHost.CreateDefaultBuilder(args)
-                .UseStartup<Startup>();
-        }
-    }
-}
+var app = builder.Build();
+
+app.UseRouting();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();
+
+public partial class Program { }
