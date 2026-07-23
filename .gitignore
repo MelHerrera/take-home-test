@@ -51,9 +51,6 @@ migrations/
 node_modules/
 dist/
 coverage/
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
 .npmrc
 .npm/
 .nodemon-debug.json
