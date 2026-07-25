@@ -1,14 +1,38 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
+using Fundo.Application.Dtos;
+using Fundo.Application.Interfaces;
+using Microsoft.AspNetCore.Mvc;
 
-namespace Fundo.Applications.WebApi.Controllers
+namespace Fundo.Applications.WebApi.Controllers;
+
+[ApiController]
+[Route("loans")]
+public class LoanManagementController(ILoanService loanService) : ControllerBase
 {
-    [Route("/loan")]
-    public class LoanManagementController : Controller
+    [HttpPost]
+    public async Task<ActionResult<LoanResponse>> Create(CreateLoanRequest request, CancellationToken cancellationToken)
     {
-        [HttpGet]
-        public Task<ActionResult> Get() {
-            return Task.FromResult<ActionResult>(Ok());
-        }
+        var loan = await loanService.CreateLoanAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = loan.Id }, loan);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<LoanResponse>> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var loan = await loanService.GetByIdAsync(id, cancellationToken);
+        return Ok(loan);
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<LoanResponse>>> GetAll(CancellationToken cancellationToken)
+    {
+        var loans = await loanService.GetAllAsync(cancellationToken);
+        return Ok(loans);
+    }
+
+    [HttpPost("{id:guid}/payment")]
+    public async Task<ActionResult<LoanResponse>> RegisterPayment(Guid id, RegisterPaymentRequest request, CancellationToken cancellationToken)
+    {
+        var loan = await loanService.RegisterPaymentAsync(id, request, cancellationToken);
+        return Ok(loan);
     }
 }
