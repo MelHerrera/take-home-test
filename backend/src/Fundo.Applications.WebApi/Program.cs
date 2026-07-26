@@ -4,11 +4,24 @@ using Fundo.Infrastructure;
 using Fundo.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
+const string AngularDevCorsPolicy = "AngularDev";
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddControllers();
+
+// Angular's dev server (ng serve, localhost:4200) and this API run on different ports, which
+// browsers treat as different origins - CORS must explicitly allow it or the browser blocks
+// every request. Scoped to the known dev server origin only, not a wildcard.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(AngularDevCorsPolicy, policy =>
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
 
 var app = builder.Build();
 
@@ -26,6 +39,7 @@ if (!app.Configuration.GetValue<bool>("SkipAutoMigrate"))
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseRouting();
+app.UseCors(AngularDevCorsPolicy);
 app.UseAuthorization();
 app.MapControllers();
 
