@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -18,6 +19,21 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Stay on "Development" so appsettings.Development.json's (real, working) connection
+        // string satisfies AddInfrastructure's eager GetConnectionString(...) check in Program.cs.
+        // That value is discarded seconds later when the SQL Server DbContext registration below
+        // gets replaced with SQLite - it's never actually connected to.
+        builder.UseEnvironment("Development");
+
+        // Program.cs runs dbContext.Database.Migrate() on every startup, which is incompatible
+        // with EnsureCreated() below (they're mutually exclusive schema-initialization strategies).
+        // This flag tells Program.cs to skip that call under tests.
+        builder.ConfigureAppConfiguration((_, configBuilder) =>
+            configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SkipAutoMigrate"] = "true",
+            }));
+
         builder.ConfigureServices(services =>
         {
             // Removing only DbContextOptions<FundoDbContext> is not enough on EF Core 7+: AddDbContext
