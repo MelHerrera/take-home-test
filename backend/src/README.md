@@ -16,10 +16,13 @@ cd Fundo.Applications.WebApi
 dotnet run
 ```
 
-The following endpoint should return **200 OK**:  
+Migrations and seed data are applied automatically on startup. The following endpoint should return **200 OK**:  
 ```http
-GET -> https://localhost:5001/loan
+GET -> http://localhost:60501/loans
 ```
+(check the console output for the actual port — it's declared in `Fundo.Applications.WebApi/Properties/launchSettings.json`)
+
+See the [root README](../../README.md) for the full setup guide, including running via Docker Compose.
 
 ## Notes  
 

@@ -15,3 +15,5 @@ npm start
 ```
 
 Open `http://localhost:4200/` in your browser.
+
+By default the app talks to the backend at `http://localhost:60501` (see `src/environments/environment.ts`) — update `apiUrl` there if you're running the backend via Docker Compose instead (port `8080`). See the [root README](../README.md) for the full setup guide.
