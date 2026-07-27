@@ -44,16 +44,13 @@ project.assets.json
 *.pfx
 *.p12
 
-# Entity Framework Migrations
-migrations/
+# Serilog file sink output (JSON, not .log extension - not covered by the *.log rule above)
+logs/
 
 # --- ANGULAR / TypeScript ---
 node_modules/
 dist/
 coverage/
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
 .npmrc
 .npm/
 .nodemon-debug.json

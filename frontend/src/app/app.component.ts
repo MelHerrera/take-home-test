@@ -1,40 +1,115 @@
-import { Component } from '@angular/core';
+import { Component, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatToolbarModule } from '@angular/material/toolbar';
+
+import { Loan } from './models/loan.model';
+import { ProblemDetails } from './models/problem-details.model';
+import { LoanService } from './services/loan.service';
+import { AuthService } from './services/auth.service';
+import { PaymentDialogComponent, PaymentDialogData } from './components/payment-dialog/payment-dialog.component';
+import { LoginComponent } from './components/login/login.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, MatTableModule, MatButtonModule],
+  imports: [
+    CommonModule,
+    MatTableModule,
+    MatButtonModule,
+    MatProgressSpinnerModule,
+    MatChipsModule,
+    MatDialogModule,
+    MatSnackBarModule,
+    MatToolbarModule,
+    LoginComponent,
+  ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
 export class AppComponent {
   displayedColumns: string[] = [
-    'loanAmount',
+    'applicantName',
+    'amountRequested',
     'currentBalance',
-    'applicant',
     'status',
+    'actions',
   ];
-  loans = [
-    {
-      loanAmount: 25000.00,
-      currentBalance: 18750.00,
-      applicant: 'John Doe',
-      status: 'active',
-    },
-    {
-      loanAmount: 15000.00,
-      currentBalance: 0,
-      applicant: 'Jane Smith',
-      status: 'paid',
-    },
-    {
-      loanAmount: 50000.00,
-      currentBalance: 32500.00,
-      applicant: 'Robert Johnson',
-      status: 'active',
-    },
-  ];
+  loans: Loan[] = [];
+  loading = true;
+  errorMessage: string | null = null;
+  payingLoanId: string | null = null;
+
+  constructor(
+    private readonly loanService: LoanService,
+    private readonly dialog: MatDialog,
+    private readonly snackBar: MatSnackBar,
+    protected readonly authService: AuthService,
+  ) {
+    // Reacts to sign-in (and sign-out -> sign-in again): loads the table as soon as isAuthenticated() becomes true
+    effect(() => {
+      if (this.authService.isAuthenticated()) {
+        this.loadLoans();
+      }
+    });
+  }
+
+  logout(): void {
+    this.authService.logout();
+    this.loans = [];
+    this.loading = true;
+  }
+
+  openPaymentDialog(loan: Loan): void {
+    const dialogRef = this.dialog.open<PaymentDialogComponent, PaymentDialogData, number>(
+      PaymentDialogComponent,
+      { data: { loan }, width: '360px' },
+    );
+
+    dialogRef.afterClosed().subscribe((amount) => {
+      if (amount == null) {
+        return;
+      }
+
+      this.payingLoanId = loan.id;
+
+      this.loanService.registerPayment(loan.id, amount).subscribe({
+        next: (updatedLoan) => {
+          const index = this.loans.findIndex((l) => l.id === updatedLoan.id);
+          if (index !== -1) {
+            this.loans[index] = updatedLoan;
+            this.loans = [...this.loans];
+          }
+          this.payingLoanId = null;
+          this.snackBar.open('Payment registered successfully.', 'Close', { duration: 3000 });
+        },
+        error: (error: HttpErrorResponse) => {
+          const problem = error.error as ProblemDetails | undefined;
+          this.payingLoanId = null;
+          this.snackBar.open(problem?.detail ?? 'Could not register the payment.', 'Close', {
+            duration: 4000,
+          });
+        },
+      });
+    });
+  }
+
+  private loadLoans(): void {
+    this.loanService.getAll().subscribe({
+      next: (loans) => {
+        this.loans = loans;
+        this.loading = false;
+      },
+      error: () => {
+        this.errorMessage = 'No se pudieron cargar los préstamos. Intenta de nuevo más tarde.';
+        this.loading = false;
+      },
+    });
+  }
 }
