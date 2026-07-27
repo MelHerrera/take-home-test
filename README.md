@@ -1,5 +1,7 @@
 # Loan Management System
 
+![CI](https://github.com/MelHerrera/take-home-test/actions/workflows/ci.yml/badge.svg)
+
 A simple Loan Management System built with a **.NET 10** backend (Clean Architecture, EF Core, SQL Server) and an **Angular 19** frontend (Angular Material), developed as part of a take-home technical assessment.
 
 ## Tech Stack
@@ -133,6 +135,14 @@ The 8 loan-endpoint tests run with a `TestAuthHandler` that always authenticates
 
 SQLite (not LocalDB) is used for integration tests specifically so the suite runs anywhere — including CI on Linux — without depending on a Windows-only database engine.
 
+## Continuous Integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request to `main`, with three independent jobs:
+
+- **backend** — `dotnet restore`, `build`, then `test` against `src.slnx`. All 23 tests run with no external database, since the integration tests use SQLite in-memory.
+- **frontend** — `npm ci` then `npm run build`.
+- **docker** — builds the API image from `Fundo.Applications.WebApi/Dockerfile` (build-only, nothing is pushed). This exists specifically because a Dockerfile can silently rot — a broken build context or a bad instruction wouldn't be caught by the backend/frontend jobs alone.
+
 ## Key Design Decisions
 
 - **.NET 10** instead of the scaffold's original .NET 6 (which reached end-of-support in Nov 2024), with the modern minimal hosting model (`WebApplicationBuilder`, no `Startup.cs`).
@@ -171,8 +181,6 @@ A few real issues were found and fixed during development (not merely anticipate
 - Add refresh tokens: a longer-lived, revocable token (persisted, so it can be invalidated on logout or if compromised) that exchanges for a new short-lived access token without requiring the user to log in again.
 - Replace the hardcoded demo credential with a real, persisted user store (hashed passwords) or delegate to an external identity provider (OAuth2/OpenID Connect), per the job description's emphasis on those protocols.
 - **At real scale, authentication/authorization typically becomes its own dedicated module or service** — a full identity provider (ASP.NET Core Identity, Duende IdentityServer, Auth0, Azure AD B2C) with real user/role management, rather than a single endpoint issuing tokens for one hardcoded account. Today's `[Authorize]` only checks "is there a valid identity at all" (binary); a real system would move to role- or policy-based authorization (`[Authorize(Roles = "...")]` / `[Authorize(Policy = "...")]`) to express finer-grained permissions (e.g., who can approve a loan vs. who can only view them).
-- A GitHub Actions CI pipeline (build + test on push/PR), per the assessment's optional bonus items.
-
 ---
 
 ## Original Take-Home Test Instructions

@@ -24,8 +24,10 @@ RUN dotnet publish Fundo.Applications.WebApi/Fundo.Applications.WebApi.csproj \
 # Stage 2: runtime only (no SDK, smaller image)
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-COPY --from=build /app/publish . # "." means the current working directory, which is /app in this case
+# "." is the destination here, meaning the current WORKDIR (/app).
+COPY --from=build /app/publish .
 
 EXPOSE 8080
-#The final directory is /app, which is the working directory in the final image. The published output from the build stage is copied to this directory. The application will listen on port 8080, and the entry point for the container is set to run the Fundo.Applications.WebApi.dll using the dotnet command.
+# The published output was copied into /app (the WORKDIR above), so the entry point
+# just runs the WebApi dll from there with the dotnet runtime.
 ENTRYPOINT ["dotnet", "Fundo.Applications.WebApi.dll"]
