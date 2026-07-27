@@ -107,6 +107,7 @@ SQLite (not LocalDB) is used for integration tests specifically so the suite run
 - **`ILoanRepository.GetAllAsync` returns `IReadOnlyList<Loan>`, not `IQueryable<Loan>`** — this keeps the ORM/provider-specific query-translation concerns fully contained inside `Fundo.Infrastructure`; nothing above that layer can accidentally compose a LINQ query the underlying provider can't translate.
 - **`ExceptionHandlingMiddleware`** lives inside `Fundo.Applications.WebApi` rather than a separate shared library, since there is only one API in this repository today (YAGNI) — it's decoupled enough to extract later if a second API is ever added.
 - **The payment dialog on the frontend only collects and validates input**; it doesn't call the API itself. The component that opened it decides what to do with the result — the standard pattern for Angular Material dialogs, and it keeps the dialog reusable/testable independent of any specific API call.
+- **Structured logging with Serilog** (console + rolling daily JSON file, one compact line per request via `UseSerilogRequestLogging`). The file sink keeps the last 30 days (`retainedFileCountLimit: 30`) — a reasonable default for this project, but real retention should follow each organization's actual log-retention/compliance policy rather than an arbitrary number.
 
 ## Challenges Encountered
 

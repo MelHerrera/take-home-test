@@ -44,6 +44,9 @@ project.assets.json
 *.pfx
 *.p12
 
+# Serilog file sink output (JSON, not .log extension - not covered by the *.log rule above)
+logs/
+
 # --- ANGULAR / TypeScript ---
 node_modules/
 dist/
