@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatTableModule } from '@angular/material/table';
@@ -7,11 +7,14 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatToolbarModule } from '@angular/material/toolbar';
 
 import { Loan } from './models/loan.model';
 import { ProblemDetails } from './models/problem-details.model';
 import { LoanService } from './services/loan.service';
+import { AuthService } from './services/auth.service';
 import { PaymentDialogComponent, PaymentDialogData } from './components/payment-dialog/payment-dialog.component';
+import { LoginComponent } from './components/login/login.component';
 
 @Component({
   selector: 'app-root',
@@ -24,11 +27,13 @@ import { PaymentDialogComponent, PaymentDialogData } from './components/payment-
     MatChipsModule,
     MatDialogModule,
     MatSnackBarModule,
+    MatToolbarModule,
+    LoginComponent,
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
-export class AppComponent implements OnInit {
+export class AppComponent {
   displayedColumns: string[] = [
     'applicantName',
     'amountRequested',
@@ -45,10 +50,20 @@ export class AppComponent implements OnInit {
     private readonly loanService: LoanService,
     private readonly dialog: MatDialog,
     private readonly snackBar: MatSnackBar,
-  ) {}
+    protected readonly authService: AuthService,
+  ) {
+    // Reacts to sign-in (and sign-out -> sign-in again): loads the table as soon as isAuthenticated() becomes true
+    effect(() => {
+      if (this.authService.isAuthenticated()) {
+        this.loadLoans();
+      }
+    });
+  }
 
-  ngOnInit(): void {
-    this.loadLoans();
+  logout(): void {
+    this.authService.logout();
+    this.loans = [];
+    this.loading = true;
   }
 
   openPaymentDialog(loan: Loan): void {

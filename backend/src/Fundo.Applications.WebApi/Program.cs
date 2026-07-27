@@ -1,8 +1,12 @@
+using System.Text;
 using Fundo.Application;
+using Fundo.Applications.WebApi.Auth;
 using Fundo.Applications.WebApi.Middleware;
 using Fundo.Infrastructure;
 using Fundo.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
@@ -39,6 +43,27 @@ try
                   .AllowAnyMethod());
     });
 
+    builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
+    var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
+        ?? throw new InvalidOperationException("Jwt configuration section is missing.");
+
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = jwtSettings.Issuer,
+                ValidateAudience = true,
+                ValidAudience = jwtSettings.Audience,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SigningKey)),
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromSeconds(30),
+            };
+        });
+    builder.Services.AddAuthorization();
+
     var app = builder.Build();
 
     // Applies any pending migrations on startup. Migrate() is idempotent (checks
@@ -57,6 +82,7 @@ try
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseRouting();
     app.UseCors(AngularDevCorsPolicy);
+    app.UseAuthentication();
     app.UseAuthorization();
     app.MapControllers();
 

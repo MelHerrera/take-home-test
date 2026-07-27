@@ -1,4 +1,5 @@
 using Fundo.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -13,7 +14,7 @@ namespace Fundo.Services.Tests.Integration;
 // Deliberately NOT shared via IClassFixture: each test gets its own factory/connection/instance
 // (xUnit's default per-test class instantiation) so seeded data never leaks between tests
 // regardless of execution order.
-public class CustomWebApplicationFactory : WebApplicationFactory<Program>
+public class CustomWebApplicationFactory(bool bypassAuthentication = true) : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
 
@@ -52,6 +53,15 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             // EnsureCreated (not migrations - those are SQL Server-specific) builds the schema
             // straight from the current model, including HasData seed rows.
             dbContext.Database.EnsureCreated();
+
+            // Most tests care about business/HTTP behavior, not JWT mechanics, so they opt into
+            // this substitution (the default). Auth-specific tests construct the factory with
+            // bypassAuthentication: false to exercise the real JwtBearer handler and get a real 401.
+            if (bypassAuthentication)
+            {
+                services.AddAuthentication(TestAuthHandler.SchemeName)
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+            }
         });
     }
 

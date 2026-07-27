@@ -76,6 +76,15 @@ npm start
 
 Open `http://localhost:4200`. By default, `src/environments/environment.ts` points to the local backend port (`http://localhost:60501`). If you started the backend via Docker instead (port `8080`), update `apiUrl` in that file before running `npm start`.
 
+### Signing in
+
+All `/loans` endpoints require a JWT (see "Authentication" below). The frontend shows a sign-in screen first — use the demo credentials:
+
+```
+Username: admin
+Password: ChangeMe123!
+```
+
 ## API Endpoints
 
 | Method | Route | Description |
@@ -87,6 +96,27 @@ Open `http://localhost:4200`. By default, `src/environments/environment.ts` poin
 
 All error responses use the standard [`ProblemDetails`](https://datatracker.ietf.org/doc/html/rfc7807) shape (`title`, `status`, `detail`, `instance`), produced by a global exception-handling middleware. Validation messages are resolved from resource files (`.resx`) rather than hardcoded strings, so they can be localized in the future.
 
+## Authentication
+
+All `/loans` endpoints require a JWT bearer token.
+
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/auth/token` | Exchange a username/password for a JWT (`{"username": "...", "password": "..."}`) |
+
+```
+POST /auth/token
+{
+  "username": "admin",
+  "password": "ChangeMe123!"
+}
+```
+returns `{ "accessToken": "...", "expiresAtUtc": "..." }`. Send it as `Authorization: Bearer <accessToken>` on subsequent requests. The Angular frontend handles this automatically (login screen + an `HttpInterceptor` that attaches the token).
+
+**This assessment has no user management system** (no `Users` table, no registration flow), so `admin`/`ChangeMe123!` is a single hardcoded demo credential purely to demonstrate JWT issuance and validation end to end — not a stand-in for real authentication. A real system would validate against a persisted, hashed credential store or an external identity provider (OAuth2/OpenID Connect).
+
+The JWT signing key is supplied via configuration, never hardcoded: `appsettings.Development.json` has a dev-only key for local runs, and Docker Compose reads `Jwt__SigningKey` from `.env` (see `.env.example`) — the same pattern used for the SQL Server password.
+
 ## Testing
 
 ```sh
@@ -94,9 +124,12 @@ cd backend/src
 dotnet test
 ```
 
-19 tests total:
+23 tests total:
 - **11 unit tests** for `LoanService` (business rules: overpayment, paying an already-settled loan, validation), using Moq for `ILoanRepository`.
-- **8 integration tests** for the full HTTP pipeline (`WebApplicationFactory`), running against a fresh **SQLite in-memory** database per test (not a shared fixture), so no test can leak state into another regardless of execution order.
+- **8 integration tests** for the loan endpoints' full HTTP pipeline (`WebApplicationFactory`), running against a fresh **SQLite in-memory** database per test (not a shared fixture), so no test can leak state into another regardless of execution order.
+- **4 integration tests** for authentication (`AuthenticationTests`): no-token → `401`, valid/invalid credentials against `/auth/token`, and a valid token → `200`.
+
+The 8 loan-endpoint tests run with a `TestAuthHandler` that always authenticates as a fixed test user (the [documented, standard pattern](https://learn.microsoft.com/aspnet/core/test/integration-tests) for testing `[Authorize]`-protected endpoints without dealing with real JWTs in every test) — they exist to verify loan business logic, not authentication, and mixing the two would mean an auth misconfiguration fails 19 unrelated tests instead of the 4 that actually cover it. `AuthenticationTests` deliberately does **not** use that bypass, so it exercises the real `JwtBearer` handler end to end — including a test that a request with `[Authorize]` and no token is genuinely rejected.
 
 SQLite (not LocalDB) is used for integration tests specifically so the suite runs anywhere — including CI on Linux — without depending on a Windows-only database engine.
 
@@ -108,8 +141,7 @@ SQLite (not LocalDB) is used for integration tests specifically so the suite run
 - **`ExceptionHandlingMiddleware`** lives inside `Fundo.Applications.WebApi` rather than a separate shared library, since there is only one API in this repository today (YAGNI) — it's decoupled enough to extract later if a second API is ever added.
 - **The payment dialog on the frontend only collects and validates input**; it doesn't call the API itself. The component that opened it decides what to do with the result — the standard pattern for Angular Material dialogs, and it keeps the dialog reusable/testable independent of any specific API call.
 - **Structured logging with Serilog** (console + rolling daily JSON file, one compact line per request via `UseSerilogRequestLogging`). The file sink keeps the last 30 days (`retainedFileCountLimit: 30`) — a reasonable default for this project, but real retention should follow each organization's actual log-retention/compliance policy rather than an arbitrary number.
-
-## Challenges Encountered
+- **JWT auth types (`JwtSettings`, `TokenRequest`/`TokenResponse`, `AuthController`) live in `Fundo.Applications.WebApi/Auth/`, not `Fundo.Domain`/`Fundo.Application`.** Test: if the authentication mechanism changed entirely (JWT → cookies → an external OAuth2/OIDC provider), would `Domain` or `Application` need to change? No — neither knows or should know how a caller authenticated, the same way neither knows about CORS. Authentication is a presentation/API-layer concern, and `TokenRequest`/`TokenResponse` never flow through any `Fundo.Application` service (there's no `IAuthService`) — logging in isn't a loan-management use case.
 
 A few real issues were found and fixed during development (not merely anticipated — actually hit and debugged):
 
@@ -126,6 +158,8 @@ A few real issues were found and fixed during development (not merely anticipate
 - **No search or pagination** on `GET /loans` — acceptable at the current seed-data scale, would not be at production scale.
 - **The frontend is not containerized** — Docker was only required for the backend per the assessment spec; the frontend runs via `npm start`.
 - **Integration tests validate functional correctness only** (mapping, request/response flow, known error paths) against a small, fixed, deterministic dataset — they do not exercise performance at scale, real-world data diversity, or concurrency, which are different testing disciplines (load testing, fuzz testing) out of scope here.
+- **No user management system.** `admin`/`ChangeMe123!` is a single hardcoded demo credential (see "Authentication" above) — there is no persisted user store or registration flow.
+- **No refresh tokens.** Access tokens expire after 60 minutes with no way to renew one without logging in again. See "Potential Improvements".
 
 ## Potential Improvements
 
@@ -134,7 +168,10 @@ A few real issues were found and fixed during development (not merely anticipate
 - Support multiple database providers via a configuration-driven switch in `AddInfrastructure` (e.g. `"DatabaseProvider": "SqlServer" | "Postgres"`), if a real multi-environment need arose.
 - Search/filter (by status) and pagination on `GET /loans` — the repository interface already returns a materialized list rather than `IQueryable`, so this would be added as explicit repository parameters, not a leaked query surface.
 - Centralize frontend loading-state handling (an `HttpInterceptor` + shared loading service) if the app grows beyond its current single view.
-- Structured logging (Serilog), JWT authentication, and a GitHub Actions CI pipeline, per the assessment's optional bonus items.
+- Add refresh tokens: a longer-lived, revocable token (persisted, so it can be invalidated on logout or if compromised) that exchanges for a new short-lived access token without requiring the user to log in again.
+- Replace the hardcoded demo credential with a real, persisted user store (hashed passwords) or delegate to an external identity provider (OAuth2/OpenID Connect), per the job description's emphasis on those protocols.
+- **At real scale, authentication/authorization typically becomes its own dedicated module or service** — a full identity provider (ASP.NET Core Identity, Duende IdentityServer, Auth0, Azure AD B2C) with real user/role management, rather than a single endpoint issuing tokens for one hardcoded account. Today's `[Authorize]` only checks "is there a valid identity at all" (binary); a real system would move to role- or policy-based authorization (`[Authorize(Roles = "...")]` / `[Authorize(Policy = "...")]`) to express finer-grained permissions (e.g., who can approve a loan vs. who can only view them).
+- A GitHub Actions CI pipeline (build + test on push/PR), per the assessment's optional bonus items.
 
 ---
 
